@@ -16,6 +16,44 @@ A high-performance, memory-efficient rate limiter with built-in expiration, LRU 
 
 ---
 
+## 🚀 Coming Soon: Request Throttler
+
+We're working on adding **advanced throttling** support to `zenin-limiter` for even greater control over your traffic:
+
+### 🔜 Throttling Support (ETA: Next Release)
+
+- ✅ **Custom Throttler Middleware**
+
+  - Fine-grained control over burst and steady request rates
+  - Supports advanced strategies like token bucket / leaky bucket
+
+- 🔧 **Express Throttler**
+
+  - Seamless integration with Express using middleware
+  - Configure burst and steady rate limits per IP or custom key
+
+- ⚡️ **Fastify Throttler**
+
+  - Fastify-compatible hook-based throttling
+  - Easy to plug into any route or global scope
+
+- 🧱 **NestJS Guard-Based Throttler**
+
+  - Guard-style decorator for NestJS routes and controllers
+  - Full control with DI and metadata support
+
+- 🛠 **Universal Throttler Handler**
+  - Works with any custom framework or HTTP implementation
+  - Use it in microservices, CLI servers, or raw Node apps
+
+### 🎯 Use Cases
+
+- Burst traffic protection
+- Smoother user experience vs hard rate limits
+- Customizable throttling strategies for API consumers
+
+---
+
 ## 📦 Installation
 
 ```bash
@@ -80,28 +118,33 @@ fastify.addHook(
 
 ---
 
-### 3. **NestJS Middleware(`Comming soon`)**
+### 3. **NestJS Middleware**
 
 ```ts
 // app.module.ts
 import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 import { NestLimiterMiddleware } from "zenin-limiter/middlewares/nest";
 
-@Module({})
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(
-        new NestLimiterMiddleware({
-          key: (req) => req.ip,
-          limit: 20,
-          windowInSeconds: 60,
-          limiterConfig: { enablePerKeyStats: true },
-        })
-      )
-      .forRoutes("*");
-  }
-}
+@Module({
+  imports: [],
+  controllers: [AppController],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useValue: new NestLimiterGuard({
+        key: (req) => req.ip || "nest-ip",
+        limit: 5,
+        windowInSeconds: 60,
+        limiterConfig: {
+          // You can pass additional config here
+        },
+      }),
+    },
+  ],
+})
+export class AppModule {}
 ```
 
 ---
@@ -123,7 +166,7 @@ app.use(
 
 ---
 
-## ⚙️ API
+## ⚙️ Types
 
 ### `LimiterConfig`
 
@@ -151,4 +194,4 @@ interface RateLimiterConfig {
 
 ## 👨‍💻 Author
 
-Made with ❤️ by Naresh Barath VP – [@nareshbarath](https://github.com/nareshbarath)
+Made with ❤️ by Naresh Barath VP – [@nareshbarathvp](https://github.com/nareshbarathvp)
