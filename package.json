@@ -1,22 +1,39 @@
 {
   "name": "zenin-limiter",
   "version": "1.0.0",
+  "description": "Universal rate & throttle limiter middleware for Express, Fastify, and custom handlers",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest"
   },
+  "files": [
+    "dist"
+  ],
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "exports": {
     "import": "./dist/index.mjs",
     "require": "./dist/index.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "rate-limiter",
+    "middleware",
+    "express",
+    "fastify",
+    "throttle"
+  ],
+  "author": "Naresh Barath VP",
   "license": "ISC",
-  "description": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nareshbarathvp/zenin-limiter"
+  },
+  "bugs": {
+    "url": "https://github.com/nareshbarathvp/zenin-limiter/issues"
+  },
+  "homepage": "https://github.com/nareshbarathvp/zenin-limiter#readme",
   "devDependencies": {
     "@nestjs/common": "^11.1.5",
     "@nestjs/core": "^11.1.5",
