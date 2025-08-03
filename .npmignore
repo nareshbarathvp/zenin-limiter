@@ -1,0 +1,30 @@
+
+# Source files
+src/
+tests/
+test/
+__tests__/
+
+# Config and environment
+vitest.config.*
+tsconfig.*
+*.log
+*.env
+
+# Misc
+.vscode/
+*.spec.ts
+*.test.ts
+
+# Git and CI
+.git/
+.github/
+
+# Docs and examples (optional)
+examples/
+coverage/
+README.draft.md
+
+# Ignore build caches
+node_modules/
+dist/**/*.map
