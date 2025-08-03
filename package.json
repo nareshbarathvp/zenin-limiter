@@ -1,6 +1,6 @@
 {
   "name": "zenin-limiter",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "Universal rate & throttle limiter middleware for Express, Fastify, and custom handlers",
   "main": "dist/index.js",
   "scripts": {
