@@ -195,3 +195,7 @@ interface RateLimiterConfig {
 ## 👨‍💻 Author
 
 Made with ❤️ by Naresh Barath VP – [@nareshbarathvp](https://github.com/nareshbarathvp)
+
+## License
+
+This project is licensed under the ISC License - see the [LICENSE](./LICENSE) file for details.
