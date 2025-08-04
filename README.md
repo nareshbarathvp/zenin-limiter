@@ -20,7 +20,7 @@ A high-performance, memory-efficient rate limiter with built-in expiration, LRU 
 
 We're working on adding **advanced throttling** support to `zenin-limiter` for even greater control over your traffic:
 
-### 🔜 Throttling Support (ETA: Next Release)
+### 🔜 Throttling Support (Next Release)
 
 - ✅ **Custom Throttler Middleware**
 
