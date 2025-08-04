@@ -18,6 +18,7 @@ A high-performance, memory-efficient rate limiter with built-in expiration, LRU 
 ## 🚧 Upcoming Features
 
 - **🔥 Throttler**: Advanced request throttling with burst control and smooth traffic shaping
+- **🌐 Redis Store**: Distributed rate limiting with Redis backend
 - **📊 Advanced Analytics**: Detailed metrics and monitoring dashboard
 - **🔐 Authentication Integration**: Built-in support for JWT, OAuth, and custom auth
 - **⚡ Edge Computing**: Cloudflare Workers and Vercel Edge Runtime support
