@@ -1,58 +1,26 @@
-# 🔥 ZenIn Limiter
+# 🔥 ZenIn Limiter v2.0
 
 A high-performance, memory-efficient rate limiter with built-in expiration, LRU memory management, optional per-key metrics, and flexible middleware support.
 
----
-
 ## ✨ Features
 
-- **Pluggable key extractor** — limit by IP, user ID, API key, etc.
-- **In-memory store** — super fast, designed for millions of keys
-- **LRU-based memory capping** — automatically cleans old keys
-- **Min-heap expiration** — removes expired entries efficiently
-- **Promise-based locking** — safe in async Node.js environments
-- **Universal middleware support** — Express, Fastify, NestJS, etc.
-- **Optional per-key stats** — track hits and rejections per identity
+- **Multiple Strategies**: Fixed window, sliding window, and token bucket
+- **Pluggable Key Extraction**: Limit by IP, user ID, API key, custom logic
+- **In-Memory Store**: Super fast, designed for millions of keys
+- **LRU-based Memory Capping**: Automatically cleans old keys
+- **Min-heap Expiration**: Removes expired entries efficiently
+- **Promise-based Locking**: Safe in async Node.js environments
+- **Universal Middleware Support**: Express, Fastify, NestJS, and more
+- **Optional Per-key Stats**: Track hits and rejections per identity
+- **Event Hooks**: Monitor rate limiting decisions
+- **Developer Experience**: Debug mode, dry run, silent mode, adaptive limits
 
----
+## 🚧 Upcoming Features
 
-## 🚀 Coming Soon: Request Throttler
-
-We're working on adding **advanced throttling** support to `zenin-limiter` for even greater control over your traffic:
-
-### 🔜 Throttling Support (ETA: Next Release)
-
-- ✅ **Custom Throttler Middleware**
-
-  - Fine-grained control over burst and steady request rates
-  - Supports advanced strategies like token bucket / leaky bucket
-
-- 🔧 **Express Throttler**
-
-  - Seamless integration with Express using middleware
-  - Configure burst and steady rate limits per IP or custom key
-
-- ⚡️ **Fastify Throttler**
-
-  - Fastify-compatible hook-based throttling
-  - Easy to plug into any route or global scope
-
-- 🧱 **NestJS Guard-Based Throttler**
-
-  - Guard-style decorator for NestJS routes and controllers
-  - Full control with DI and metadata support
-
-- 🛠 **Universal Throttler Handler**
-  - Works with any custom framework or HTTP implementation
-  - Use it in microservices, CLI servers, or raw Node apps
-
-### 🎯 Use Cases
-
-- Burst traffic protection
-- Smoother user experience vs hard rate limits
-- Customizable throttling strategies for API consumers
-
----
+- **🔥 Throttler**: Advanced request throttling with burst control and smooth traffic shaping
+- **📊 Advanced Analytics**: Detailed metrics and monitoring dashboard
+- **🔐 Authentication Integration**: Built-in support for JWT, OAuth, and custom auth
+- **⚡ Edge Computing**: Cloudflare Workers and Vercel Edge Runtime support
 
 ## 📦 Installation
 
@@ -60,142 +28,483 @@ We're working on adding **advanced throttling** support to `zenin-limiter` for e
 npm install zenin-limiter
 ```
 
----
+## 🚀 Quick Start
 
-## 🧠 How It Works
+### Express.js
 
-1. The `LimiterConfig` defines how the limiter behaves.
-2. You provide a `key()` extractor — based on request IP, user, etc.
-3. You call `isAllowedMemory()` with this key to determine access.
-4. The limiter auto-cleans expired keys and trims memory via LRU.
-
----
-
-## 🧩 Usage Examples
-
-### 1. **Express Middleware**
-
-```ts
+```typescript
 import express from "express";
-import { expressLimiter } from "zenin-limiter/middlewares/express";
+import { expressLimiter } from "zenin-limiter";
 
 const app = express();
 
+// Basic IP-based rate limiting
 app.use(
   expressLimiter({
-    key: (req) => req.ip,
-    limit: 5,
+    keyType: "ip",
+    limit: 100,
     windowInSeconds: 60,
-    limiterConfig: { enablePerKeyStats: true },
   })
 );
 
 app.get("/", (req, res) => {
-  res.send("Hello, world!");
+  res.json({ message: "Hello World!" });
 });
 ```
 
----
+### Fastify
 
-### 2. **Fastify Middleware**
-
-```ts
+```typescript
 import Fastify from "fastify";
-import { fastifyLimiter } from "zenin-limiter/middlewares/fastify";
+import { fastifyLimiter } from "zenin-limiter";
 
 const fastify = Fastify();
 
 fastify.addHook(
   "onRequest",
   fastifyLimiter({
-    key: (req) => req.ip,
-    limit: 10,
+    keyType: "ip",
+    limit: 100,
     windowInSeconds: 60,
-    limiterConfig: { enablePerKeyStats: true },
   })
 );
+
+fastify.get("/", async (request, reply) => {
+  return { message: "Hello World!" };
+});
 ```
 
----
+### NestJS
 
-### 3. **NestJS Middleware**
-
-```ts
-// app.module.ts
-import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
-import { APP_GUARD } from "@nestjs/core";
-import { NestLimiterMiddleware } from "zenin-limiter/middlewares/nest";
+```typescript
+import { Module } from "@nestjs/common";
+import { RateLimitModule, NestLimiterGuard } from "zenin-limiter";
 
 @Module({
-  imports: [],
-  controllers: [AppController],
+  imports: [RateLimitModule],
   providers: [
-    AppService,
     {
-      provide: APP_GUARD,
-      useValue: new NestLimiterGuard({
-        key: (req) => req.ip || "nest-ip",
-        limit: 5,
-        windowInSeconds: 60,
-        limiterConfig: {
-          // You can pass additional config here
-        },
-      }),
+      provide: "APP_GUARD",
+      useClass: NestLimiterGuard,
     },
   ],
 })
 export class AppModule {}
 ```
 
----
+## 🎯 Rate Limiting Strategies
 
-### 4. **Universal Limiter (Express or Fastify)**
+| Strategy           | Description                                          | Use Case                              |
+| ------------------ | ---------------------------------------------------- | ------------------------------------- |
+| **Fixed Window**   | Simple time-window based limiting                    | Basic rate limiting, simple use cases |
+| **Sliding Window** | Accurate per-window limiting with timestamp tracking | Precise rate limiting, API protection |
+| **Token Bucket**   | Smooth burst control with steady refill rate         | Smooth traffic, burst handling        |
 
-```ts
-import { universalLimiter } from "zenin-limiter/middlewares/universal";
+### Strategy Comparison
 
+```typescript
+// Fixed Window (default) - Simple but less accurate
+const fixedLimiter = new RateLimiter({
+  limit: 100,
+  windowInSeconds: 60,
+  strategy: "fixed",
+});
+
+// Sliding Window - More accurate per window
+const slidingLimiter = new RateLimiter({
+  limit: 100,
+  windowInSeconds: 60,
+  strategy: "sliding",
+});
+
+// Token Bucket - Smooth burst control
+const tokenBucketLimiter = new RateLimiter({
+  limit: 100,
+  windowInSeconds: 60,
+  strategy: "tokenBucket",
+});
+```
+
+## 🔑 Key Generation
+
+### Built-in Key Types
+
+```typescript
+// IP-based limiting
+expressLimiter({ keyType: "ip" });
+
+// User agent-based limiting
+expressLimiter({ keyType: "user-agent" });
+
+// Header-based limiting
+expressLimiter({ keyType: "header:X-API-KEY" });
+
+// Path-based limiting
+expressLimiter({ keyType: "path" });
+```
+
+### Custom Key Generator
+
+```typescript
+expressLimiter({
+  customKeyGenerator: (req) => req.headers["x-user-id"] || "anonymous",
+  limit: 50,
+  windowInSeconds: 300,
+});
+```
+
+## 🎛️ Advanced Configuration
+
+### Event Hooks
+
+```typescript
+expressLimiter({
+  keyType: "ip",
+  limit: 100,
+  windowInSeconds: 60,
+  onLimitReached: (key, req) => {
+    console.log(`Rate limit exceeded for ${key}`);
+    // Send alert, log to monitoring service, etc.
+  },
+  onPass: (key, req) => {
+    console.log(`Request allowed for ${key}`);
+  },
+  onError: (error) => {
+    console.error("Rate limiter error:", error);
+  },
+});
+```
+
+### Debug Mode
+
+```typescript
+expressLimiter({
+  keyType: "ip",
+  limit: 100,
+  windowInSeconds: 60,
+  debug: true, // Logs all rate limiting decisions
+});
+```
+
+### Dry Run Mode
+
+```typescript
+expressLimiter({
+  keyType: "ip",
+  limit: 100,
+  windowInSeconds: 60,
+  dryRun: true, // Simulates rate limiting without blocking
+});
+```
+
+### Silent Mode
+
+```typescript
+expressLimiter({
+  keyType: "ip",
+  limit: 100,
+  windowInSeconds: 60,
+  silent: true, // Logs decisions but doesn't block requests
+});
+```
+
+### Adaptive Limits
+
+```typescript
+expressLimiter({
+  keyType: "ip",
+  limit: (req) => (req.headers["x-user-type"] === "premium" ? 1000 : 100),
+  windowInSeconds: 60,
+});
+```
+
+### Memory Configuration
+
+```typescript
+expressLimiter({
+  keyType: "ip",
+  limit: 100,
+  windowInSeconds: 60,
+  limiterConfig: {
+    maxStoreSize: 100000, // Max number of keys
+    cleanupInterval: 500, // Calls between cleanups
+    enablePerKeyStats: true, // Track per-key metrics
+    maxBatchCleanup: 500, // Max keys to clean per batch
+  },
+});
+```
+
+## 📊 Monitoring & Statistics
+
+### Get Rate Limiter Stats
+
+```typescript
+import { RateLimiter } from "zenin-limiter";
+
+const limiter = new RateLimiter({
+  limit: 100,
+  windowInSeconds: 60,
+});
+
+// Make some requests
+await limiter.isAllowed("user1");
+await limiter.isAllowed("user2");
+
+// Get statistics
+const stats = limiter.getStats();
+console.log(stats);
+// {
+//   totalRequests: 2,
+//   hits: 2,
+//   rejections: 0,
+//   activeKeys: 2
+// }
+```
+
+### Per-key State
+
+```typescript
+const state = await limiter.getState("user1");
+console.log(state);
+// {
+//   remaining: 99,
+//   resetAt: 1640995200000,
+//   limit: 100
+// }
+```
+
+## 🏗️ Framework Integration
+
+### Express.js
+
+```typescript
+import express from "express";
+import { expressLimiter } from "zenin-limiter";
+
+const app = express();
+
+// Global rate limiting
 app.use(
-  universalLimiter({
-    key: (req) => req.headers["x-api-key"] || "__anon__",
-    limit: 15,
-    windowInSeconds: 30,
-    limiterConfig: {},
+  expressLimiter({
+    keyType: "ip",
+    limit: 100,
+    windowInSeconds: 60,
+  })
+);
+
+// Route-specific rate limiting
+app.use(
+  "/api",
+  expressLimiter({
+    keyType: "header:X-API-KEY",
+    limit: 1000,
+    windowInSeconds: 3600,
+    strategy: "sliding",
+  })
+);
+
+// Custom key generator
+app.use(
+  "/user",
+  expressLimiter({
+    customKeyGenerator: (req) => req.headers["x-user-id"] || "anonymous",
+    limit: 50,
+    windowInSeconds: 300,
   })
 );
 ```
 
----
+### Fastify
 
-## ⚙️ Types
+```typescript
+import Fastify from "fastify";
+import { fastifyLimiter } from "zenin-limiter";
 
-### `LimiterConfig`
+const fastify = Fastify();
 
-```ts
+fastify.addHook(
+  "onRequest",
+  fastifyLimiter({
+    keyType: "ip",
+    limit: 100,
+    windowInSeconds: 60,
+  })
+);
+
+// Route-specific limiting
+fastify.addHook("onRequest", async (request, reply) => {
+  if (request.url.startsWith("/api")) {
+    return fastifyLimiter({
+      keyType: "header:X-API-KEY",
+      limit: 1000,
+      windowInSeconds: 3600,
+    })(request, reply);
+  }
+});
+```
+
+### NestJS
+
+```typescript
+import { Module, Controller, Get, UseGuards } from "@nestjs/common";
+import { RateLimit, NestLimiterGuard } from "zenin-limiter";
+
+@Controller("api")
+export class ApiController {
+  @Get()
+  @RateLimit({
+    keyType: "ip",
+    limit: 100,
+    windowInSeconds: 60,
+  })
+  getData() {
+    return { message: "Hello World!" };
+  }
+
+  @Get("premium")
+  @RateLimit({
+    keyType: "ip",
+    limit: (req) => (req.headers["x-user-type"] === "premium" ? 1000 : 100),
+    windowInSeconds: 60,
+  })
+  getPremiumData() {
+    return { message: "Premium content!" };
+  }
+}
+
+@Module({
+  controllers: [ApiController],
+  providers: [
+    {
+      provide: "APP_GUARD",
+      useClass: NestLimiterGuard,
+    },
+  ],
+})
+export class AppModule {}
+```
+
+### Raw Node.js
+
+```typescript
+import { RateLimiter } from "zenin-limiter";
+
+const limiter = new RateLimiter({
+  limit: 100,
+  windowInSeconds: 60,
+  strategy: "sliding",
+});
+
+// Check if request is allowed
+const allowed = await limiter.isAllowed("user123");
+if (!allowed) {
+  // Handle rate limit exceeded
+  return res.status(429).json({ error: "Too many requests" });
+}
+
+// Get current state
+const state = await limiter.getState("user123");
+console.log(`Remaining requests: ${state.remaining}`);
+
+// Reset rate limit for a user
+await limiter.reset("user123");
+```
+
+## 🔧 Configuration Options
+
+### LimiterConfig
+
+```typescript
 interface LimiterConfig {
-  key: (context: any) => string;
-  limit: number;
-  windowInSeconds: number;
-  limiterConfig?: RateLimiterConfig;
+  // Key generation
+  keyType?: "ip" | "user-agent" | "header:X-API-KEY" | "path" | "custom";
+  headerName?: string;
+  customKeyGenerator?: (req: any) => string;
+
+  // Rate limiting
+  limit?: number | ((req: any) => number);
+  windowInSeconds?: number;
+  strategy?: "fixed" | "sliding" | "tokenBucket";
+
+  // Event hooks
+  onLimitReached?: (key: string, req?: any) => void;
+  onReset?: (key: string) => void;
+  onPass?: (key: string, req?: any) => void;
+  onError?: (error: Error) => void;
+
+  // Debugging
+  debug?: boolean;
+  dryRun?: boolean;
+  silent?: boolean;
+
+  // Memory management
+  limiterConfig?: {
+    maxStoreSize?: number;
+    cleanupInterval?: number;
+    enablePerKeyStats?: boolean;
+    maxBatchCleanup?: number;
+  };
 }
 ```
 
-### `RateLimiterConfig`
+## 📈 Performance
 
-```ts
-interface RateLimiterConfig {
-  maxStoreSize?: number; // Default: 1,000,000
-  cleanupInterval?: number; // Default: 1000 calls
-  enablePerKeyStats?: boolean; // Default: false
-  maxBatchCleanup?: number; // Default: 1000
-}
+### Benchmarks
+
+- **Fixed Window**: ~100ms for 10,000 requests
+- **Sliding Window**: ~30ms for 10,000 requests
+- **Token Bucket**: ~20ms for 10,000 requests
+- **Memory Usage**: Efficient cleanup with LRU eviction
+- **Concurrent Safety**: Thread-safe with promise-based locking
+
+### Memory Management
+
+- **Automatic Cleanup**: Expired entries are removed automatically
+- **LRU Eviction**: Least recently used keys are removed when memory cap is reached
+- **Configurable Limits**: Set maximum number of keys and cleanup intervals
+- **Background GC**: Periodic cleanup every 30 seconds
+
+## 🛠️ Development
+
+### Building
+
+```bash
+npm run build
 ```
 
----
+### Testing
+
+```bash
+npm test
+```
+
+### Development Mode
+
+```bash
+npm run dev
+```
+
+## 📝 Examples
+
+See the `/examples` directory for complete examples:
+
+- `express-basic.ts` - Express.js integration
+- `fastify-basic.ts` - Fastify integration
+- `nestjs-basic.ts` - NestJS integration
+- `raw-node.ts` - Raw Node.js usage
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the ISC License - see the [LICENSE](./LICENSE) file for details.
 
 ## 👨‍💻 Author
 
 Made with ❤️ by Naresh Barath VP – [@nareshbarathvp](https://github.com/nareshbarathvp)
-
-## License
-
-This project is licensed under the ISC License - see the [LICENSE](./LICENSE) file for details.

@@ -14,15 +14,23 @@
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "exports": {
-    "import": "./dist/index.mjs",
-    "require": "./dist/index.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "keywords": [
     "rate-limiter",
     "middleware",
     "express",
     "fastify",
-    "throttle"
+    "nestjs",
+    "throttle",
+    "rate-limiting",
+    "api-protection",
+    "security"
   ],
   "author": "Naresh Barath VP",
   "license": "ISC",
@@ -54,5 +62,8 @@
     "@nestjs/core": "^9.0.0 || ^10.0.0 || ^11.0.0",
     "express": "^4.0.0 || ^5.0.0",
     "fastify": "^4.0.0 || ^5.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   }
 }

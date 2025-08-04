@@ -2,29 +2,163 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import request from "supertest";
 import express from "express";
 import Fastify from "fastify";
-import { isAllowedMemory, resetAll } from "../src/strategies/memoryStore";
+import { RateLimiter } from "../src/core/RateLimiter";
+import { FixedWindowStrategy } from "../src/strategies/memoryStore";
+import { SlidingWindowStrategy } from "../src/strategies/slidingWindow";
+import { TokenBucketStrategy } from "../src/strategies/tokenBucket";
 import { expressLimiter } from "../src/middleware/express";
 import { fastifyLimiter } from "../src/middleware/fastify";
 import { universalLimiter } from "../src/middleware/handler";
 
-// 🧪 Memory Limiter Direct Usage
-describe("Memory Rate Limiter (Raw)", () => {
+// 🧪 Core Rate Limiter Tests
+describe("Rate Limiter Core", () => {
   beforeEach(async () => {
-    await resetAll();
+    // Reset all strategies
+    await FixedWindowStrategy.resetAll();
+    await SlidingWindowStrategy.resetAll();
+    await TokenBucketStrategy.resetAll();
   });
 
-  it("allows under limit", async () => {
-    const key = "test-user";
-    expect(await isAllowedMemory(key, 3, 60)).toBe(true);
-    expect(await isAllowedMemory(key, 3, 60)).toBe(true);
-    expect(await isAllowedMemory(key, 3, 60)).toBe(true);
+  describe("Fixed Window Strategy", () => {
+    it("allows under limit", async () => {
+      const limiter = new RateLimiter({
+        limit: 3,
+        windowInSeconds: 60,
+        strategy: "fixed",
+      });
+
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+    });
+
+    it("blocks after limit", async () => {
+      const limiter = new RateLimiter({
+        limit: 2,
+        windowInSeconds: 60,
+        strategy: "fixed",
+      });
+
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+      expect(await limiter.isAllowed("test-user")).toBe(false);
+    });
   });
 
-  it("blocks after limit", async () => {
-    const key = "test-user";
-    await isAllowedMemory(key, 2, 60);
-    await isAllowedMemory(key, 2, 60);
-    expect(await isAllowedMemory(key, 2, 60)).toBe(false);
+  describe("Sliding Window Strategy", () => {
+    it("allows under limit", async () => {
+      const limiter = new RateLimiter({
+        limit: 3,
+        windowInSeconds: 60,
+        strategy: "sliding",
+      });
+
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+    });
+
+    it("blocks after limit", async () => {
+      const limiter = new RateLimiter({
+        limit: 2,
+        windowInSeconds: 60,
+        strategy: "sliding",
+      });
+
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+      expect(await limiter.isAllowed("test-user")).toBe(false);
+    });
+  });
+
+  describe("Token Bucket Strategy", () => {
+    it("allows under limit", async () => {
+      const limiter = new RateLimiter({
+        limit: 3,
+        windowInSeconds: 60,
+        strategy: "tokenBucket",
+      });
+
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+    });
+
+    it("blocks after limit", async () => {
+      const limiter = new RateLimiter({
+        limit: 2,
+        windowInSeconds: 60,
+        strategy: "tokenBucket",
+      });
+
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+      expect(await limiter.isAllowed("test-user")).toBe(false);
+    });
+  });
+
+  describe("DX Features", () => {
+    it("supports dryRun mode", async () => {
+      const limiter = new RateLimiter({
+        limit: 1,
+        windowInSeconds: 60,
+        dryRun: true,
+      });
+
+      // Should always allow in dry run mode
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+    });
+
+    it("supports silent mode", async () => {
+      const limiter = new RateLimiter({
+        limit: 1,
+        windowInSeconds: 60,
+        silent: true,
+      });
+
+      // Should return actual result but not block
+      expect(await limiter.isAllowed("test-user")).toBe(true);
+      expect(await limiter.isAllowed("test-user")).toBe(false);
+    });
+
+    it("supports adaptive limits", async () => {
+      const limiter = new RateLimiter({
+        limit: (req: any) => (req?.user?.isPremium ? 1000 : 100),
+        windowInSeconds: 60,
+      });
+
+      const premiumReq = { user: { isPremium: true } };
+      const regularReq = { user: { isPremium: false } };
+
+      // Test with premium user (should have higher limit)
+      for (let i = 0; i < 100; i++) {
+        expect(await limiter.isAllowed("premium-user", premiumReq)).toBe(true);
+      }
+
+      // Test with regular user (should have lower limit)
+      for (let i = 0; i < 100; i++) {
+        expect(await limiter.isAllowed("regular-user", regularReq)).toBe(true);
+      }
+      expect(await limiter.isAllowed("regular-user", regularReq)).toBe(false);
+    });
+
+    it("provides stats", async () => {
+      const limiter = new RateLimiter({
+        limit: 2,
+        windowInSeconds: 60,
+      });
+
+      await limiter.isAllowed("test-user");
+      await limiter.isAllowed("test-user");
+      await limiter.isAllowed("test-user");
+
+      const stats = limiter.getStats();
+      expect(stats.totalRequests).toBe(3);
+      expect(stats.hits).toBe(2);
+      expect(stats.rejections).toBe(1);
+    });
   });
 });
 
@@ -36,10 +170,9 @@ describe("Express Rate Limiter", () => {
     app = express();
     app.use(
       expressLimiter({
-        key: (req) => req.ip,
+        keyType: "ip",
         limit: 2,
         windowInSeconds: 60,
-        limiterConfig: {},
       })
     );
     app.get("/", (_, res) => res.send("OK"));
@@ -63,7 +196,7 @@ describe("Fastify Rate Limiter", () => {
     fastify.addHook(
       "onRequest",
       fastifyLimiter({
-        key: (req) => req.ip,
+        keyType: "ip",
         limit: 2,
         windowInSeconds: 60,
         limiterConfig: { enablePerKeyStats: true },
@@ -99,10 +232,9 @@ describe("Universal Rate Limiter", () => {
     const next = vi.fn();
 
     const limiter = universalLimiter({
-      key: (req) => req.ip,
+      keyType: "ip",
       limit: 2,
       windowInSeconds: 60,
-      limiterConfig: {},
     });
 
     await limiter(req, res, next);

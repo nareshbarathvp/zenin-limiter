@@ -38,6 +38,7 @@ let lruHead: LruNode | null = null; // LRU list head
 let lruTail: LruNode | null = null; // LRU list tail
 const perKeyStats = new Map<string, { hits: number; rejections: number }>(); // Optional per-key metrics
 let lockPromise: Promise<void> = Promise.resolve(); // Concurrency lock
+let gcInterval: NodeJS.Timeout | null = null;
 
 /**
  * Min-heap operations for expiry queue.
@@ -198,6 +199,30 @@ async function acquireLock(): Promise<() => void> {
   return () => resolveLock!();
 }
 
+function sweepExpiredKeys(maxBatchCleanup: number = 1000) {
+  const now = Date.now();
+  let cleaned = 0;
+  while (
+    heap.length > 0 &&
+    heap[0].expiresAt <= now &&
+    cleaned < maxBatchCleanup
+  ) {
+    const expired = heapPop()!;
+    const current = memoryStore.get(expired.key);
+    if (current && current.expiresAt === expired.expiresAt) {
+      if (current.lruNode.prev)
+        current.lruNode.prev.next = current.lruNode.next;
+      if (current.lruNode.next)
+        current.lruNode.next.prev = current.lruNode.prev;
+      if (current.lruNode === lruHead) lruHead = current.lruNode.next;
+      if (current.lruNode === lruTail) lruTail = current.lruNode.prev;
+      memoryStore.delete(expired.key);
+      perKeyStats.delete(expired.key);
+    }
+    cleaned++;
+  }
+}
+
 /**
  * Checks if a key is allowed based on rate limit.
  * Uses a min-heap for expirations, LRU for memory capping, and Promise-based locking.
@@ -356,5 +381,76 @@ export async function isAllowedMemory(
     return false; // Rate limit exceeded
   } finally {
     unlock();
+  }
+}
+
+import { RateLimitStrategy, RateLimitState } from "../types";
+
+export class FixedWindowStrategy implements RateLimitStrategy {
+  private config: any;
+  private maxEntries: number;
+  private gcStarted = false;
+  private getLimitFn?: (req?: any) => number;
+
+  constructor(config: any) {
+    this.config = config;
+    this.maxEntries = config.limiterConfig?.maxStoreSize || 1000000;
+    this.getLimitFn =
+      typeof config.limit === "function" ? config.limit : undefined;
+    this.startGC();
+  }
+
+  private getLimit(req?: any): number {
+    if (this.getLimitFn) {
+      return this.getLimitFn(req);
+    }
+    return this.config.limit;
+  }
+
+  private startGC() {
+    if (this.gcStarted) return;
+    gcInterval = setInterval(() => {
+      sweepExpiredKeys(this.config.limiterConfig?.maxBatchCleanup || 1000);
+      // Enforce maxEntries
+      while (memoryStore.size > this.maxEntries) {
+        removeLruTail();
+      }
+    }, 30000); // 30 seconds
+    this.gcStarted = true;
+  }
+
+  stopGC() {
+    if (gcInterval) clearInterval(gcInterval);
+    this.gcStarted = false;
+  }
+
+  async isAllowed(key: string, req?: any): Promise<boolean> {
+    // Enforce maxEntries before allowing
+    while (memoryStore.size >= this.maxEntries) {
+      removeLruTail();
+    }
+    return isAllowedMemory(
+      key,
+      this.getLimit(req),
+      this.config.windowInSeconds,
+      this.config.limiterConfig
+    );
+  }
+
+  async reset(key: string): Promise<void> {
+    return resetKey(key);
+  }
+
+  async getState(key: string): Promise<RateLimitState> {
+    // Not implemented in original logic, return dummy for now
+    return {
+      remaining: 0,
+      resetAt: 0,
+      limit: this.config.limit,
+    };
+  }
+
+  static async resetAll(): Promise<void> {
+    await resetAll();
   }
 }
